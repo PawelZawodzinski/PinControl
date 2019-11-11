@@ -37,8 +37,9 @@ uint8_t SimpleButton::buttonPressed(){
 	return 0;
 }
 
+
  //----------------------------- ButtonStatus ----------------------------//
- 
+
 ButtonStatus::ButtonStatus(uint8_t pin){
 	_pin = pin;
 	_time = 0;
@@ -169,6 +170,157 @@ uint8_t ButtonCounter::buttonPressedCounter(unsigned long delay,bool ignoreFlag)
 	return 0;
 }
 
+
+ //----------------------------- Obsługa rolety ----------------------------//
+
+RollerBlind::RollerBlind(uint8_t pinUp, uint8_t pinDown, unsigned long moveTime){
+	_status = 0b11000100;		// ustawia status na była podnoszona, roleta po zainiciowaniu będzie opuszczana
+	_pinUp = pinUp;
+	_pinDown = pinDown;
+	_time = moveTime;
+	//expanderWrite(_pinUp,0);	// dla pewności wyłacza ruch w obu kierunkach
+	//expanderWrite(_pinDown,0);	// dla pewności wyłacza ruch w obu kierunkach
+}
+
+void RollerBlind::goUp(){
+	/*
+	 *  1100 0000 - GÓRA 
+     *  1100 0001 - przygotowanie do przejścia w górę
+     *  1100 0011 - ruch w górę
+     * 	1100 0100 - roleta zatrzymana była podnoszona
+     */
+    _status = 0b11000001;
+    _moveTime = millis() + _switchTime;
+    
+    expanderWrite(_pinUp,0);	// dla pewności wyłacza ruch w obu kierunkach
+	expanderWrite(_pinDown,0);	// dla pewności wyłacza ruch w obu kierunkach
+}
+
+void RollerBlind::goDown(){
+	/*
+	 *  1000 0000 - DÓŁ 
+     *  1000 0001 - przygotowanie do przejścia w dół
+     *  1000 0011 - ruch w dół
+     *  1000 0100 - roleta zatrzymana była opuszczana
+     */
+    _status = 0b10000001;
+    _moveTime = millis() + _switchTime; 
+    
+    expanderWrite(_pinUp,0);	// dla pewności wyłacza ruch w obu kierunkach
+	expanderWrite(_pinDown,0);	// dla pewności wyłacza ruch w obu kierunkach
+}
+
+void RollerBlind::goOpposite(){
+	/*
+     *  0000 0000 - STOP
+     *  
+     *  1000 0000 - DÓŁ 
+     *  1000 0001 - przygotowanie do przejścia w dół
+     *  1000 0011 - ruch w dół
+     *  1000 0100 - roleta zatrzymana była opuszczana
+     * 
+     *  1100 0000 - GÓRA 
+     *  1100 0001 - przygotowanie do przejścia w górę
+     *  1100 0011 - ruch w górę
+     * 	1100 0100 - roleta zatrzymana była podnoszona
+     */ 
+	if ((_status & 0b11000000) == 0b11000000){	// ruch był w górę przygotowanie do przejścia w dół 
+		RollerBlind::goDown();
+		return;		
+	}
+	if ((_status & 0b11000000) == 0b10000000){	// ruch był w dół przygotowanie do przejścia w górę 
+		RollerBlind::goUp();
+		return;
+	}
+}
+
+void RollerBlind::stop(){
+	// najpierw zatrzymaj ruch
+	expanderWrite(_pinUp,0);
+	expanderWrite(_pinDown,0);	
+	
+	if (_status & 0b11000000 == 0b10000000){ 	// maska wyciąga kierunek ruchu rolety
+		_status = 0b10000100; 					// ustala jaki był kierunek ruchu
+	}
+	
+	if (_status & 0b11000000 == 0b11000000){	// maska wyciąga kierunek ruchu rolety
+		_status = 0b11000100;					// ustala jaki był kierunek ruchu
+	}
+}
+
+uint8_t RollerBlind::getStatus(){
+	return _status;
+}
+
+void RollerBlind::loop(){
+	
+	// 0 - roleta zatrzymana L1 = 0 L2 = 0
+    // 1 - przygotowanie do przejścia na podnoszenie L1 = 0 L2 = 0
+    // 2 - podnoszenie L1 = 1 L2 = 0
+    // 3 - ZATRZYMANIE PO PODNOSZENIU USTAWIA STAN 100
+    // 100 - ROLETA BYŁA PODNOSZONA 
+    // 4 - przygotowanie do przejścia na opuszczanie L1 = 0 L2 = 0
+    // 5 - opuszczanie L1 = 0 L2 = 1
+    // 6 - ZATRZYMANIE PO OPUSZCZENIU USTAWIA STAN 200
+    // 200 - ROLETA BYŁA OPUSZCZANA 
+    
+    // 10 - zatrzymanie - ROLETA BYŁA PODNOSZONA
+    // 20 - zatrzymanie - ROLETA BYŁA OPUSZCZANA  
+    /*
+     *  0000 0000 - STOP
+     *  
+     *  1000 0000 - DÓŁ 
+     *  1000 0001 - przygotowanie do przejścia w dół
+     *  1000 0011 - ruch w dół
+     *  1000 0100 - roleta zatrzymana była opuszczana
+     * 
+     *  1100 0000 - GÓRA 
+     *  1100 0001 - przygotowanie do przejścia w górę
+     *  1100 0011 - ruch w górę
+     * 	1100 0100 - roleta zatrzymana była podnoszona
+     */ 
+	
+	if(_status & 0b10000001 == 0b10000001){ 	// sprawdza czy zaplanowany jest ruch w kturymś kierunku
+		
+		if(millis() > _moveTime){ 				// odczekuje pomiędzy przełączeniami czas _switchTime 
+												// jeśli ustawiono ruch w którymś kierunku dodatkowo oczekuje czas _time
+			
+			if(_status == 0b10000011){			// jeśli roleta była opuszczona zostanie zatrzymana
+				_status = 0b10000100;			// ustawia status rolety na była opuszczana
+				expanderWrite(_pinUp,0);
+				expanderWrite(_pinDown,0);
+				return;
+			}
+			
+			if(_status == 0b10000001){			// roleta ma iść w dół			
+				_status = 0b10000011;
+				expanderWrite(_pinUp,0);
+				expanderWrite(_pinDown,1);	
+				_moveTime = millis() + _time;	// ustawia czas jak długo ma trwać ruch
+				return;
+			}
+			
+			if(_status == 0b11000011){			// jeśli roleta była podnoszona zostanie zatrzymana
+				_status = 0b11000100;			// ustawia status rolety na była podnoszona
+				expanderWrite(_pinUp,0);
+				expanderWrite(_pinDown,0);
+				return;
+			}
+			
+			if(_status == 0b11000001){			// roleta ma iść w górę			
+				_status = 0b11000011;
+				expanderWrite(_pinDown,0);
+				expanderWrite(_pinUp,1);					
+				_moveTime = millis() + _time;	// ustawia czas jak długo ma trwać ruch
+				return;
+			}
+			
+		}
+		
+	}
+	
+}
+
  //----------------------------- PWM GoTo ----------------------------//
 
 PwmGoTo::PwmGoTo(uint8_t pin){
@@ -192,6 +344,22 @@ uint8_t PwmGoTo::GetCurrentLevel(){
 
 uint8_t PwmGoTo::GetGoToLevel(){
 	return _gotoLevel;
+}
+
+void PwmGoTo::LevelUp(){
+	if(_gotoLevel < 253){
+		_gotoLevel = _gotoLevel + 2;
+	}else{
+		_gotoLevel = _gotoLevel = 255;
+	}
+}
+
+void PwmGoTo::LevelDown(){
+	if(_gotoLevel > 2){
+		_gotoLevel = _gotoLevel - 2;
+	}else{
+		_gotoLevel = _gotoLevel = 0;
+	}
 }
 
 void PwmGoTo::PwmLoop(uint8_t delay){
@@ -224,3 +392,41 @@ void PwmGoTo::PwmLoop(uint8_t delay){
 		}
 	}
 }
+
+ //----------------------------- LevelChange ----------------------------//
+
+LevelChange::LevelChange(uint8_t pin ,uint8_t* levels,uint8_t size){
+	_pin = pin;
+	_levels = levels;
+	_size = size-1;	
+	_level = 0;
+}
+uint8_t LevelChange::ChangeUp(){	
+	//Serial.print("level "); Serial.println(_level);
+	//Serial.print("size  "); Serial.println(_size);
+	if(_level < _size){
+		_level++;		
+	}
+	else
+	{
+		_level = 0;
+	}
+	expanderAnalogWrite(_pin, _levels[_level]);
+	return _levels[_level];
+}
+uint8_t LevelChange::ChangeDown(){
+	if(_level > 0 ){
+		_level--;		
+	}
+	else
+	{
+		_level = _size;
+	}
+	expanderAnalogWrite(_pin, _levels[_level]);
+	return _levels[_level];	
+}
+
+void LevelChange::SetOff(){
+	expanderAnalogWrite(_pin, 0);
+}
+

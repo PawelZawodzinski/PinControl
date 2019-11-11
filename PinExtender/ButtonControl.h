@@ -15,6 +15,37 @@
 class SimpleButton;
 class ButtonLoop;
 class ButtonCounter;
+class RollerBlind;
+class PwmGoTo;
+
+/*
+typedef enum ROLLERBIND_STATE{
+	 *
+     *  0000 0000 - STOP
+     *  
+     *  1000 0000 - DÓŁ 
+     *  1000 0001 - przygotowanie do przejścia w dół
+     *  1000 0011 - ruch w dół
+     *  1000 0100 - roleta zatrzymana była opuszczana
+     * 
+     *  1100 0000 - GÓRA 
+     *  1100 0001 - przygotowanie do przejścia w górę
+     *  1100 0011 - ruch w górę
+     * 	1100 0100 - roleta zatrzymana była podnoszona
+     *
+	
+	STOP 		= 0b00000000,
+
+	WILLGODOWN	= 0b10000001, 	
+	GODOWN		= 0b10000011,	 	
+	WNETDOWN	= 0b10000100, 
+	
+	WILLGOUP	= 0b11000001,
+	GOUP		= 0b11000011,
+	WENTUP		= 0b11000100,	
+	
+	};
+*/
 
 /*
 class ButtonControl {	
@@ -31,7 +62,7 @@ class SimpleButton {
     uint8_t buttonPressed();
   private:
 	uint8_t _pin;
-    unsigned long _time;   
+    unsigned long _time;
 };
 
 class ButtonStatus{
@@ -67,6 +98,24 @@ class ButtonCounter {
     unsigned long _time;    
 };
 
+class RollerBlind {
+	public:
+		RollerBlind(uint8_t pinUp, uint8_t pinDown, unsigned long time);
+		void goUp();
+		void goDown();
+		void goOpposite();
+		void stop();
+		void loop();	
+		uint8_t getStatus();
+	private:
+		uint8_t _status;
+		uint8_t _pinUp;
+		uint8_t _pinDown;
+		unsigned long _time;
+		unsigned long _moveTime;	
+		unsigned long _switchTime = 500;
+};
+
 class PwmGoTo {
 	public:
 		PwmGoTo(uint8_t pin);
@@ -75,11 +124,27 @@ class PwmGoTo {
 		void GoTo(uint8_t level);
 		uint8_t GetCurrentLevel();
 		uint8_t GetGoToLevel();
+		void LevelDown();
+		void LevelUp();
 	private:
 		uint8_t _pin;
 		uint8_t _delay;
 		uint8_t _currentLevel;
 		uint8_t _gotoLevel;
 };	
+
+class LevelChange {
+	public:
+		LevelChange(uint8_t pin ,uint8_t* levels,uint8_t size);
+		uint8_t ChangeUp();
+		uint8_t ChangeDown();
+		void SetOff();
+	private:
+		uint8_t _size;
+		uint8_t _level;
+		uint8_t _pin;
+		uint8_t* _levels;
+	
+};
 
 #endif

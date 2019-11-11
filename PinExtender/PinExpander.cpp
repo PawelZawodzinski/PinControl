@@ -16,6 +16,7 @@ uint8_t pinDir[8];
 void addExpander(EXPANDER_TYPE type, uint8_t portADir, uint8_t portBDir){
 	if (type == MCP23017){
 		if (MCP23017_COUNTER < 7){
+		// portXDir 1 - in ; 0 - out
 		Wire.begin();
 		Wire.beginTransmission(MCP23017_ADRESS | MCP23017_COUNTER);
 		Wire.write(MCP23017_IODIRA); 									// IODIRA register

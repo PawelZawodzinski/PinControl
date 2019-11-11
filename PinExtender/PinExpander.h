@@ -33,6 +33,7 @@
 #define MCP23017_INTCAPB 0x11
 #define MCP23017_GPIOB 0x13
 #define MCP23017_OLATB 0x15
+
 //----------------------- PCA -----------------------//
 #define PCA9635_ADRESS 0x18 // - na sztywno zwarte piny A4, A5
 
